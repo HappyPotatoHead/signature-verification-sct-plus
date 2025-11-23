@@ -1,3 +1,9 @@
+# Tensorboard
+runs/
+
+# Models
+checkpoint/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
