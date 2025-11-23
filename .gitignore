@@ -1,3 +1,11 @@
+# signature Images
+data/
+raw_signature_images/
+
+# Self-hosting
+nginx/
+docker-compose.yml
+
 # Tensorboard
 runs/
 
