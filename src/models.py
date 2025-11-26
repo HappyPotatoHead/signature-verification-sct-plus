@@ -479,12 +479,14 @@ class SCTLoss(nn.Module):
             pos_valid = (Pos > -1) & ( Pos < 1)
             N_pos = int(pos_valid.float().sum().item())
             if N_pos > 0:
-                positive_pull = F.relu(self.margin - Pos[pos_valid]).sum()
+                positive_pull = F.relu(self.margin - Pos[pos_valid]).mean()
             else:
                 positive_pull = torch.Tensor(0.0, device=device)
             
             N_total = max(N_hard + N_easy, 1)
-            return (loss_easy + self.lam * loss_hard + 0.5 * positive_pull) / N_total
+            sct_loss = (loss_easy + self.lam * loss_hard) / N_total
+            return sct_loss + 0.5 * positive_pull
+            # return (loss_easy + self.lam * loss_hard + 0.5 * positive_pull) / N_total
             # return (loss_easy + self.lam * loss_hard) / N_total
         else:
             return -F.log_softmax(Triplet_val / 0.1, dim=1)[:, 0].mean()
