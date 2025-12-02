@@ -45,6 +45,7 @@ from .utils import (
     training_and_testing_split,
     # plot_auc_roc,
     build_label_to_indices,
+    pretty_metrics
     # plot_embedding_distances   
 )
 
@@ -103,6 +104,7 @@ __all__ = [
     "prepare_signature_map",
     "training_and_testing_split",
     "build_label_to_indices",
+    "pretty_metrics",
     # "plot_auc_roc",
     # "plot_embedding_distances",
     

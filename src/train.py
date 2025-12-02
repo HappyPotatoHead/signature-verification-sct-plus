@@ -74,7 +74,9 @@ class Trainer:
             images = images.to(self.device)
             unique_labels = sorted(set(labels))
             label_to_int = {label: i for i, label in enumerate(unique_labels)}
-            label_tensor = torch.tensor([label_to_int[label] for label in labels], dtype=torch.long, device=self.device)
+            label_tensor = torch.tensor([
+                label_to_int[label] for label in labels
+                ], dtype=torch.long, device=self.device)
         
             self.optimiser.zero_grad()
             
@@ -82,10 +84,10 @@ class Trainer:
                 outputs = self.model(images)
                 
                 # SCTLoss returns (loss, triplet_vals, triplet_idxs, hn_ratio, Pos_log, Neg_log)
-                # loss, triplet_vals, _triplet_idxs, hn_ratio, pos, neg= self.loss_function(outputs, label)
+                loss, triplet_vals, _triplet_idxs, hn_ratio, pos, neg= self.loss_function(outputs, label_tensor)
                 
                 # Vanilla Triplet Loss returns (loss, stats)
-                loss, stats = self.loss_function(outputs, label_tensor)
+                # loss, stats = self.loss_function(outputs, label_tensor)
             
             # Gradient clipping is optional
             
@@ -104,21 +106,21 @@ class Trainer:
                 # For both SCT and vanilla Triplet Loss
                 self.writer.add_scalar(f"Train/BatchLoss", loss.item(), self.global_step) # pyright: ignore[reportUnknownMemberType]
                 
-                # # SCT
-                # self.writer.add_scalar(f"Train/HN_Ratio", hn_ratio.item(), self.global_step) # pyright: ignore[reportUnknownMemberType]
-                # self.writer.add_scalar(f"Train/PosMean", pos.mean().item(), self.global_step) # pyright: ignore[reportUnknownMemberType]
-                # self.writer.add_scalar(f"Train/NegMean", neg.mean().item(), self.global_step) # pyright: ignore[reportUnknownMemberType]
+                # SCT
+                self.writer.add_scalar(f"Train/HN_Ratio", hn_ratio.item(), self.global_step) # pyright: ignore[reportUnknownMemberType]
+                self.writer.add_scalar(f"Train/PosMean", pos.mean().item(), self.global_step) # pyright: ignore[reportUnknownMemberType]
+                self.writer.add_scalar(f"Train/NegMean", neg.mean().item(), self.global_step) # pyright: ignore[reportUnknownMemberType]
                 
-                # self.writer.add_histogram(f"Train/Pos", triplet_vals[:,0], self.global_step) # pyright: ignore[reportUnknownMemberType]
-                # self.writer.add_histogram(f"Train/Neg", triplet_vals[:,1], self.global_step) # pyright: ignore[reportUnknownMemberType]
+                self.writer.add_histogram(f"Train/Pos", triplet_vals[:,0], self.global_step) # pyright: ignore[reportUnknownMemberType]
+                self.writer.add_histogram(f"Train/Neg", triplet_vals[:,1], self.global_step) # pyright: ignore[reportUnknownMemberType]
                 
                 # Vanilla Triplet Loss
-                self.writer.add_scalar("Train/HN_Ratio", stats["hn_ratio"], self.global_step) # pyright: ignore[reportUnknownMemberType]
-                self.writer.add_scalar("Train/PosMean", stats["pos"].mean().item(), self.global_step) # pyright: ignore[reportUnknownMemberType]
-                self.writer.add_scalar("Train/NegMean", stats["neg"].mean().item(), self.global_step) # pyright: ignore[reportUnknownMemberType]
+                # self.writer.add_scalar("Train/HN_Ratio", stats["hn_ratio"], self.global_step) # pyright: ignore[reportUnknownMemberType]
+                # self.writer.add_scalar("Train/PosMean", stats["pos"].mean().item(), self.global_step) # pyright: ignore[reportUnknownMemberType]
+                # self.writer.add_scalar("Train/NegMean", stats["neg"].mean().item(), self.global_step) # pyright: ignore[reportUnknownMemberType]
 
-                self.writer.add_histogram("Train/Pos", stats["triplet_vals"][:,0], self.global_step) # pyright: ignore[reportUnknownMemberType]
-                self.writer.add_histogram("Train/Neg", stats["triplet_vals"][:,1], self.global_step) # pyright: ignore[reportUnknownMemberType]
+                # self.writer.add_histogram("Train/Pos", stats["triplet_vals"][:,0], self.global_step) # pyright: ignore[reportUnknownMemberType]
+                # self.writer.add_histogram("Train/Neg", stats["triplet_vals"][:,1], self.global_step) # pyright: ignore[reportUnknownMemberType]
                 
                 total_norm: float = 0.
                 for p in self.model.parameters():
@@ -204,13 +206,12 @@ class Trainer:
             
             self.writer.add_embedding( # pyright: ignore[reportUnknownMemberType]
                 mat = val_embedding,
-                metadata=all_labels,
-                global_step=self.global_step
+                metadata = all_labels,
+                global_step = self.global_step
             )
             
             self.writer.add_scalar("Loss/train", train_loss, epoch) # pyright: ignore[reportUnknownMemberType]
             self.writer.add_scalar("AUC/val", val_metrics["AUC"], epoch) # pyright: ignore[reportUnknownMemberType]
-            # I should change this to include loss value from validation too
             self.writer.add_scalar("Loss/1_minus_auc", 1.0 - val_metrics["AUC"], epoch) # pyright: ignore[reportUnknownMemberType] 
             self.writer.add_scalar("Learning rate", self.optimiser.param_groups[0]["lr"], epoch) # pyright: ignore[reportUnknownMemberType]
             
@@ -228,7 +229,7 @@ class Trainer:
                 if self.save_checkpoints:
                     self._save_checkpoint(epoch, val_auc_for_stop, self.best_val_auc, self.patience_counter)
             else:
-                self.patience_counter+=1
+                self.patience_counter += 1
                 if self.patience_counter >= self.early_stop:
                     print("Early stopping")
                     break

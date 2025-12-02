@@ -54,8 +54,8 @@ LEARNING_CONFIG: Dict[str, str | int | float] = {
     
     "DEVICE": "cuda" if torch.cuda.is_available() else "cpu",
     
-    "CHECKPOINT_DIR": "checkpoint/exp_01_bh",
-    "LOG_DIR": "runs/exp_01_bh"
+    "CHECKPOINT_DIR": "checkpoint/exp_01_sct",
+    "LOG_DIR": "runs/exp_01_sct"
 }
 
 OPTIMISER_PARAMS: Dict[str, str | float] = {

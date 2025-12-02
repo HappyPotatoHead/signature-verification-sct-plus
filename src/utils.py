@@ -125,3 +125,16 @@ def build_label_to_indices(dataset: SignatureDataset) -> dict[str, List[int]]:
         label_to_indices[label].append(index)
     
     return dict(label_to_indices)
+
+def pretty_metrics(metrics: Dict[str, Any]) -> None:
+    print("=== Evaluation Metrics ===")
+    print(f"AUC       : {metrics['AUC']:.4f}")
+    print(f"EER       : {metrics['EER']:.4f}")
+    print(f"Threshold : {metrics['threshold']:.4f}")
+
+    fpr = metrics['fpr']
+    tpr = metrics['tpr']
+    if len(fpr) > 0:
+        print(f"ROC Points: {len(fpr)}")
+        print(f"FPR range : {fpr.min():.4f} → {fpr.max():.4f}")
+        print(f"TPR range : {tpr.min():.4f} → {tpr.max():.4f}")
