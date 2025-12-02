@@ -13,19 +13,29 @@ from PIL import Image
 class PKSampler(Sampler[List[int]]):
     def __init__(
         self,
-        label_to_indices: Dict[str, List[int]],  # "10_orig", "10_forg" <- clear separation of classes
-        P: int,  # signers per batch
-        K: int,  # originals per signer
-        F: int,  # forgeries per signer (Intra-class)
-        M: int,  # signatures from other signer (Inter-class)
-        seed: int = 42, # reproducibility
+        label_to_indices: Dict[str, List[int]],  
+        # signers per batch
+        P: int,  
+        # originals per signer
+        K: int,  
+        # forgeries per signer (Intra-class)
+        F: int,  
+        # signatures from other signer (Inter-class)
+        M: int,  
+        seed: int = 42,
     ):
-
-        self.P = P
-        self.K = K
-        self.F = F
-        self.M = M
+        # "10_orig", "10_forg" (clear separation of classes)
         self.label_to_indices = label_to_indices
+        
+        # Signers per batch
+        self.P = P
+        # Originals per signer
+        self.K = K
+        # Forgeries mimic the same signer
+        self.F = F
+        # Signatures from other signers
+        self.M = M
+        
         self.signers = sorted({lbl.split("_")[0] for lbl in label_to_indices.keys()})
         self.seed = seed
 
@@ -94,7 +104,6 @@ class SignatureDataset(Dataset[Tuple[torch.Tensor, str]]):
         # }
         self.data_map = data_map
         self.transform = transform
-        
         # Get the signer ids in order
         self.signer_ids = sorted(list(data_map.keys()), key=int)
         
@@ -109,7 +118,8 @@ class SignatureDataset(Dataset[Tuple[torch.Tensor, str]]):
                 self.all_image_references.append((signer_id, "forged", index))
         
         self.labels = [
-            f"{signer_id}_{img_type[:4]}"  # "orig" or "forg"
+            # "orig" or "forg"
+            f"{signer_id}_{img_type[:4]}"
             for signer_id, img_type, _ in self.all_image_references
         ]
 
@@ -134,13 +144,6 @@ class SignatureDataset(Dataset[Tuple[torch.Tensor, str]]):
         return image_tensor, label
 
 class TestSignatureDataset(Dataset[Tuple[torch.Tensor, str]]):
-    """
-    Dataset designed specifically for the evaluation pipeline.
-    
-    Produces samples in the exact order expected by build_verification_pairs():
-        sorted signer IDs → originals → forgeries
-    """
-
     def __init__(
         self,
         data_map: Dict[str, Dict[str, List[str]]],
@@ -149,12 +152,12 @@ class TestSignatureDataset(Dataset[Tuple[torch.Tensor, str]]):
         self.data_map = data_map
         self.transform = transform
 
-        # Ensure deterministic ordering
+        # Deterministic ordering
         self.signer_ids = sorted(list(data_map.keys()), key=int)
 
         # Build ordered list matching evaluation logic
-        self.ordered_items: List[Tuple[str, str, str]] = []
         # (signer_id, "original"/"forged", path)
+        self.ordered_items: List[Tuple[str, str, str]] = []
 
         for sid in self.signer_ids:
             for path in data_map[sid].get("original", []):
@@ -176,9 +179,5 @@ class TestSignatureDataset(Dataset[Tuple[torch.Tensor, str]]):
         else:
             image_array: npt.NDArray[np.uint8] = np.array(image_pil, dtype=np.uint8)
             image_tensor: torch.Tensor = torch.from_numpy(image_array).unsqueeze(0).float() / 255.0 # pyright: ignore[reportUnknownMemberType]
-        
-        # IMPORTANT:
-        # evaluation code expects label to be a *tensor containing string IDs*
-        # but torch can't store strings → so evaluation uses batching with collate_fn default
-        # Each label is kept as a Python string.
+
         return image_tensor, signer_id

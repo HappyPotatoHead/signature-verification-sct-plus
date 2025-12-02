@@ -6,7 +6,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
+import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 
 from sklearn.metrics import roc_auc_score, roc_curve # pyright: ignore[reportUnknownVariableType]
 
@@ -18,51 +20,60 @@ def evaluate(
 ) -> Dict[str, Any]:
     model.to(device)
     
-    # Applying the model
-    embeddings = embed_all(model, test_loader, device)
+    embeddings, labels = embed_all(model, test_loader, device)
 
     # original, easy, and hard forgery  
-    pos_pairs, intra_pairs, inter_pairs = build_verification_pairs(embeddings, test_map)
+    pos_pairs, intra_pairs, _inter_pairs = build_verification_pairs(embeddings, test_map)
 
-    # Intra and Inter
-    neg_pairs = intra_pairs + inter_pairs
+    neg_pairs = intra_pairs
     
     # Compute similarities
     pos_scores = compute_scores(embeddings, pos_pairs)
     neg_scores = compute_scores(embeddings, neg_pairs)
-
-    # Metrics
+    print(f"Num positive pairs: {len(pos_scores)}")
+    print(f"Num negative pairs: {len(neg_scores)}")
+    
     metrics = compute_metrics(pos_scores, neg_scores)
-
+    operating_point = summarise_operating_point(
+        metrics["fpr"], metrics["tpr"], thresholds = metrics["thresholds"], chosen_threshold = metrics["threshold"]
+    )
+    metrics["accuracy"] = compute_accuracy(pos_scores, neg_scores, metrics["threshold"])
+    
+    print(f"At threshold {operating_point['threshold']:.3f}")
+    print(f"  TPR = {operating_point["TPR"]*100:.1f}%")
+    print(f"  FPR = {operating_point["FPR"]*100:.1f}%")
+    
+    plot_auc_graph(metrics)
+    plot_confusion_matrix(pos_scores, neg_scores, metrics["threshold"])
+    
     return {
-        "embeddings": embeddings,
-        "pos_scores": pos_scores,
-        "neg_scores": neg_scores,
+        "embeddings": embeddings.cpu(),
+        "labels": labels,
+        "pos_scores": sum(pos_scores) / len(pos_scores),
+        "neg_scores": sum(neg_scores) / len(neg_scores),
         "metrics": metrics,
     }
-
+    
 def embed_all(
     model: nn.Module, 
     dataloader: DataLoader[Tuple[torch.Tensor, str]], 
     device: torch.device
-) -> torch.Tensor:
+) -> Tuple[torch.Tensor, List[str]]:
     
     model.eval()
     embeddings_list: List[torch.Tensor] = []
-    # labels_list: List[str] = []
+    labels_list: List[str] = []
     
     with torch.no_grad():
         for images, _signer_ids in dataloader:
             images = images.to(device)
             embedding = model(images)
             embeddings_list.append(embedding.cpu())
-            # labels_list.append(signer_ids.cpu())
+            labels_list.append(_signer_ids)
             
     all_embeddings = torch.cat(embeddings_list)
-    # labels = torch.cat(labels_list)
     
-    return all_embeddings
-# , labels
+    return all_embeddings, labels_list
 
 def build_verification_pairs(
     embeddings: torch.Tensor,
@@ -71,7 +82,6 @@ def build_verification_pairs(
     num_samples = embeddings.shape[0]
     
     ordered_paths: List[Tuple[str, str, str]] = []
-    # ordered_types = []
     
     for signer_id in sorted(test_map.keys(), key=int):
         for path in test_map[signer_id].get("original", []):
@@ -83,14 +93,11 @@ def build_verification_pairs(
     assert len(ordered_paths) == num_samples, \
         "Embedding count does not match number of test images."
         
-    # signer_to_indices = {}
     orig_indices: Dict[str, List[int]] = {}
     forg_indices: Dict[str, List[int]] = {}
     
     for index, (sid, t, _) in enumerate(ordered_paths):
-        # signer_to_indices.setdefault(sid, []).append(index)
-        if t == "original":
-            orig_indices.setdefault(sid, []).append(index)
+        if t == "original": orig_indices.setdefault(sid, []).append(index)
         else: forg_indices.setdefault(sid, []).append(index)
     
     pos_pairs: List[Tuple[int, int]] = []
@@ -108,7 +115,8 @@ def build_verification_pairs(
                 intra_neg_pairs.append((i, j))
     
     inter_neg_pairs: List[Tuple[int, int]] = []
-    sids = list(orig_indices.keys())  # original-only ensures consistency
+    # original-only to ensure consistency
+    sids = list(orig_indices.keys()) 
 
     for sid_a, sid_b in combinations(sids, 2):
         for i in orig_indices[sid_a]:
@@ -122,17 +130,18 @@ def compute_scores(
     pairs: List[Tuple[int, int]]
 ) -> List[float]:
     scores: List[float] = []
-    if len(pairs) == 0:
-        return scores
+    if len(pairs) == 0: return scores
     
     for i, j in pairs:
-        if i < 0 or j < 0 or i >= embeddings.shape[0] or j >= embeddings.shape[0]:
-            continue
+        if i < 0 or j < 0 or i >= embeddings.shape[0] or j >= embeddings.shape[0]: continue
+        
         sim = F.cosine_similarity(
             embeddings[i].unsqueeze(0),
             embeddings[j].unsqueeze(0),
         ).item()
+        
         scores.append(float(sim))
+    
     return scores    
 
 def compute_metrics(
@@ -154,8 +163,7 @@ def compute_metrics(
     y_true = [1] * len(pos_scores) + [0] * len(neg_scores)
     y_score = pos_scores + neg_scores
     
-    try:
-        auc = roc_auc_score(y_true, y_score)
+    try: auc = roc_auc_score(y_true, y_score)
     except Exception:
         metrics["AUC"] = float("nan")
         return metrics
@@ -175,112 +183,68 @@ def compute_metrics(
         "threshold": threshold,
         "fpr": fpr,
         "tpr": tpr,
+        "thresholds":thresholds
     })
     
     return metrics
 
-# def evaluate_model(
-#     model: nn.Module,
-#     test_loader: DataLoader[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]],
-#     margin: float = 0.5,
-# ) -> EvalResults:
-#     model.eval()
-#     all_labels: List[float] = []
-#     all_distances: List[float] = []
-#     embeddings_list: defaultdict[
-#         str, 
-#         List[
-#             npt.NDArray[
-#                 np.float32
-#             ]
-#         ]
-#     ] = defaultdict(list)
+def summarise_operating_point(
+    fpr: Any, 
+    tpr: Any, 
+    thresholds: Any, 
+    chosen_threshold: Any
+) -> Dict[str, Any]:
     
-#     total_loss: float = 0.0
-#     num_batches: int = 0
+    index = (np.abs(thresholds - chosen_threshold)).argmin()
     
-#     with torch.no_grad():
-#         for anchor, positive, negative, _anchor_id in test_loader:
-#             anchor = anchor.to(LEARNING_CONFIG["DEVICE"])
-#             positive = positive.to(LEARNING_CONFIG["DEVICE"])
-#             negative = negative.to(LEARNING_CONFIG["DEVICE"])
-             
-#             anchor_embedding = model(anchor)
-#             positive_embedding = model(positive)
-#             negative_embedding = model(negative)
-            
-#             positive_dist, negative_dist, loss = compute_distance_eval(anchor_embedding, positive_embedding, negative_embedding, margin)
-#             total_loss += loss.item()
-#             num_batches += 1
-            
-#             for k, v in zip(("anchor", "positive", "negative"), (anchor_embedding, positive_embedding, negative_embedding)):
-#                 embeddings_list[k].append(v.cpu().numpy())
-            
-#             all_distances.extend(positive_dist.cpu().tolist()); all_labels.extend([1]*len(positive_dist)) # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
-#             all_distances.extend(negative_dist.cpu().tolist()); all_labels.extend([0]*len(negative_dist)) # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
-
-#     final_embeddings: Dict[str, npt.NDArray[np.float32]] = {k: np.concatenate(v, axis=0) for k,v in embeddings_list.items()}
-#     all_distances_np = np.array(all_distances, np.float32).reshape(-1)
-#     all_labels_np = np.array(all_labels, np.int64).reshape(-1)
+    return {
+        "threshold": thresholds[index],
+        "TPR": tpr[index],   # genuine acceptance rate
+        "FPR": fpr[index],   # forgery acceptance rate
+    }
     
-#     fpr, tpr, fnr, thresholds, roc_auc, scores = calculate_auc(all_labels_np, all_distances_np)
-#     eer, eer_threshold = calculate_eer_eer_threshold(thresholds, fpr, fnr)
-
-#     preds = (scores >= eer_threshold).astype(int)
-
-#     metrics: Dict[str, Any] = {
-#         "avg_triplet_loss": total_loss/num_batches,
-#         "avg_pos_dist": float(all_distances_np[all_labels_np==1].mean()),
-#         "avg_neg_dist": float(all_distances_np[all_labels_np==0].mean()),
-#         "auc_roc": float(roc_auc),
-#         "eer": float(eer),
-#         "eer_threshold": float(eer_threshold),
-#         "accuracy": accuracy_score(all_labels_np, preds),
-#         "precision": precision_score(all_labels_np, preds, pos_label=1),
-#         "recall": recall_score(all_labels_np, preds, pos_label=1),
-#     }
-
-#     curves = {"fpr": fpr, "tpr": tpr, "fnr": fnr}
-#     return EvalResults(all_distances_np, all_labels_np, final_embeddings, metrics, curves)
-
-# def compute_distance_eval(
-#     anchor: torch.Tensor, 
-#     positive: torch.Tensor, 
-#     negative: torch.Tensor, 
-#     margin: float,
-# ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-#     positive_dist = F.pairwise_distance(anchor, positive)
-#     negative_dist = F.pairwise_distance(anchor, negative)
-#     loss = torch.mean(torch.relu(positive_dist - negative_dist + margin))
-#     return positive_dist, negative_dist, loss
-
-# def calculate_eer_eer_threshold(
-#     thresholds: npt.NDArray[np.float32],
-#     fpr: npt.NDArray[np.float32],
-#     fnr: npt.NDArray[np.float32],
-# ) -> Tuple[float, float]:
-#     absolute_difference = np.abs(fpr - fnr)
-#     index = np.argmin(absolute_difference)
-#     eer = (fpr[index] + fnr[index]) / 2.0
-#     eer_threshold = thresholds[index]
+def compute_accuracy(
+    pos_scores: List[float], 
+    neg_scores: List[float],
+    threshold: float
+) -> float:
+    if len(pos_scores) == 0 and len(neg_scores) == 0: return float("nan")
     
-#     return eer, eer_threshold
+    pos_correct = sum([1 for score in pos_scores if score >= threshold])
+    neg_correct = sum([1 for score in neg_scores if score < threshold])
+    
+    total = len(pos_scores) + len(neg_scores)
+    correct = pos_correct + neg_correct
+    
+    return correct / total if total > 0 else float("nan")
 
-# def calculate_auc(
-#     all_labels_np: npt.NDArray[np.int64], 
-#     all_distances_np: npt.NDArray[np.float32]
-# ) -> Tuple[
-#     npt.NDArray[np.float32],
-#     npt.NDArray[np.float32],
-#     npt.NDArray[np.float32],
-#     npt.NDArray[np.float32],
-#     float,
-#     npt.NDArray[np.float32],
-# ]:    
-#     scores = -all_distances_np
-#     fpr, tpr, thresholds = roc_curve(all_labels_np, scores) # pyright: ignore[reportUnknownVariableType]
-#     roc_auc = float(auc(fpr, tpr)) # pyright: ignore[reportUnknownArgumentType]
+def plot_auc_graph(metrics: Dict[str, Any]) -> None:
+    plt.figure() # pyright: ignore[reportUnknownMemberType]
+    plt.plot(metrics["fpr"], metrics["tpr"], label=f"AUC = {metrics['AUC']:.3f}") # pyright: ignore[reportUnknownMemberType]
+    plt.plot([0,1], [0,1], '--') # pyright: ignore[reportUnknownMemberType]
+    plt.xlabel("FPR") # pyright: ignore[reportUnknownMemberType]
+    plt.ylabel("TPR") # pyright: ignore[reportUnknownMemberType]
+    plt.title("ROC Curve") # pyright: ignore[reportUnknownMemberType]
+    plt.legend() # pyright: ignore[reportUnknownMemberType]
+    plt.show() # pyright: ignore[reportUnknownMemberType]
+    
+def plot_confusion_matrix(
+    pos_scores: List[float], 
+    neg_scores: List[float], 
+    threshold: float
+) -> None:
+    y_true = [1] * len(pos_scores) + [0] * len(neg_scores)
 
-#     fnr = 1 - tpr  # pyright: ignore[reportUnknownVariableType]
+    pos_pred = [1 if score >= threshold else 0 for score in pos_scores]
+    neg_pred = [1 if score >= threshold else 0 for score in neg_scores]
 
-#     return fpr, tpr, fnr, thresholds, roc_auc, scores # pyright: ignore[reportUnknownVariableType]
+    y_pred = pos_pred + neg_pred
+        
+    cm = confusion_matrix(y_true, y_pred) # type: ignore
+
+    plt.figure(figsize=(8, 6)) # pyright: ignore[reportUnknownMemberType]
+    sns.heatmap(cm, annot=True, fmt="g", cmap="Blues") # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+    plt.title("Confusion Matrix") # pyright: ignore[reportUnknownMemberType]
+    plt.ylabel("True Label") # pyright: ignore[reportUnknownMemberType]
+    plt.xlabel("Predicted Label") # pyright: ignore[reportUnknownMemberType]
+    plt.show() # pyright: ignore[reportUnknownMemberType]

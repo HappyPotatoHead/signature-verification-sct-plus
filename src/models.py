@@ -156,8 +156,6 @@ class TripletLoss(nn.Module):
         self, 
         margin: float = 1.0,
         mining_strategy: str = "batch_semi_hard",
-        use_diversity: bool = False,
-        lambda_diversity: float = 0.1,
         p: int = 2,
     ) -> None:
         super().__init__()  # pyright: ignore[reportUnknownMemberType]
@@ -169,10 +167,6 @@ class TripletLoss(nn.Module):
         
         self.margin = margin
         self.mining_strategy = mining_strategy
-        
-        # This is optional, but it's usually not needed 
-        self.lambda_diversity = lambda_diversity
-        self.use_diversity = use_diversity
         
         self.p = p
     
@@ -225,10 +219,7 @@ class TripletLoss(nn.Module):
         }
         
         triplet_loss = self.base_loss(embeddings, positives, negatives)
-
-        if self.use_diversity and self.lambda_diversity > 0:
-            triplet_loss = triplet_loss + self._compute_diversity_regularisation(embeddings)
-
+        
         return triplet_loss, stats
 
     # Gives me 1s and 0s
@@ -298,13 +289,6 @@ class TripletLoss(nn.Module):
         neg_idx = torch.where(use_semi, semi_idx, hard_idx)
         
         return pos_idx, neg_idx, use_semi
-    
-    # This is not really necessary
-    def _compute_diversity_regularisation(self, embeddings: torch.Tensor) -> torch.Tensor:
-        sim = embeddings @ embeddings.T
-        eye = torch.eye(sim.size(0), device=sim.device, dtype=sim.dtype)
-        diversity = (sim - eye).pow(2).mean()
-        return self.lambda_diversity * diversity
  
 class SCTLossWrapper(nn.Module):
     def __init__(
@@ -312,16 +296,24 @@ class SCTLossWrapper(nn.Module):
         method: str = "sct", 
         lam: float = 1.0,
         margin: float = 1.0,
+        positive_pull_weight: float = 0.5,
         verbose: bool = False
     ) -> None:
         super().__init__() # pyright: ignore[reportUnknownMemberType]
-        self.loss_fn = SCTLoss(method, lam, margin, verbose)
+        self.loss_fn = SCTLoss(method, lam, margin, positive_pull_weight, verbose)
 
     def forward(
         self, 
         fvec: torch.Tensor, 
         Lvec: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[
+            torch.Tensor, 
+            torch.Tensor, 
+            torch.Tensor, 
+            torch.Tensor, 
+            torch.Tensor, 
+            torch.Tensor
+        ]:
         
         # SCTLoss returns (loss, Triplet_val.clone().detach().cpu(), Triplet_idx.clone().detach().cpu(), hn_ratio, Pos, Neg)
         return self.loss_fn(fvec, Lvec)
@@ -330,12 +322,12 @@ class SCTLoss(nn.Module):
     def __init__(
         self, 
         method: str, 
-        lam: float=1.0, 
+        lam: float = 1.0, 
         margin: float = 1.0,
+        positive_pull_weight: float = 0.5,
         verbose: bool = False,
     ):
         super(SCTLoss, self).__init__() # pyright: ignore[reportUnknownMemberType]
-        
         if method == 'sct':
             self.sct, self.semi = True, False
         elif method == 'hn':
@@ -346,12 +338,23 @@ class SCTLoss(nn.Module):
         self.lam = lam
         self.margin = margin
         self.verbose = verbose
+        self.positive_pull_weight = positive_pull_weight
 
     def forward(
         self,
         fvec: torch.Tensor,
         Lvec: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[
+            torch.Tensor, 
+            torch.Tensor, 
+            torch.Tensor, 
+            torch.Tensor, 
+            torch.Tensor, 
+            torch.Tensor
+        ]:
+        
+        # Tensor has already been normalised in the model, so
+        # there is no need to repeat things here
         
         device = fvec.device
         Same, Diff = self._build_boolean_masks(Lvec.view(-1))
@@ -392,9 +395,9 @@ class SCTLoss(nn.Module):
         
         D_pos = CosSim.clone().detach()
         D_pos[Diff] = -1
-        # D_pos[D_pos>0.9999] = -1
         V_pos, I_pos = D_pos.max(1)
- 
+
+        # Select hard positives
         Mask_pos_valid = (V_pos > -1) & (V_pos < 1)
         Pos = CosSim[torch.arange(0, CosSim.size(0)), I_pos]
         Pos_log = Pos.clone().detach().cpu()
@@ -420,7 +423,6 @@ class SCTLoss(nn.Module):
         # Masking out non-Semi-Hard Negative
         if self.semi:    
             D_neg[(D_neg > V_pos.unsqueeze(1)) & Diff] = -1 
-            # D_neg[(D_neg > (V_pos.repeat(CosSim.size(0), 1).t())) & Diff] = -1
             
         V_neg, I_neg = D_neg.max(1)
         Mask_neg_valid = (V_neg > -1) & (V_neg < 1)
@@ -448,10 +450,7 @@ class SCTLoss(nn.Module):
         Triplet_idx = torch.stack([I_pos, I_neg], 1)
         
         return Triplet_val, Triplet_idx, HardMask, EasyMask, hn_ratio
-    
-        # Triplet_val_log = Triplet_val.clone().detach().cpu()
-        # Triplet_idx_log = Triplet_idx.clone().detach().cpu()
-        
+
     def _compute_loss(
         self, 
         Triplet_val: torch.Tensor, 
@@ -476,22 +475,21 @@ class SCTLoss(nn.Module):
                 loss_easy, N_easy = torch.tensor(0.0), 0
                 print('No easy triplets in the batch')
             
-            pos_valid = (Pos > -1) & ( Pos < 1)
-            N_pos = int(pos_valid.float().sum().item())
-            if N_pos > 0:
-                positive_pull = F.relu(self.margin - Pos[pos_valid]).sum()
+            pos_valid = (Pos > -1) & (Pos < 1)
+            if pos_valid.any():
+                positive_pull = F.relu(self.margin - Pos[pos_valid]).mean()
             else:
-                positive_pull = torch.Tensor(0.0, device=device)
+                positive_pull = torch.tensor(0.0, device=device, requires_grad=True)
             
             N_total = max(N_hard + N_easy, 1)
-            return (loss_easy + self.lam * loss_hard + 0.5 * positive_pull) / N_total
-            # return (loss_easy + self.lam * loss_hard) / N_total
+            sct_loss = (loss_easy + self.lam * loss_hard) / N_total
+            
+            return sct_loss + ( self.positive_pull_weight * positive_pull)
         else:
-            return -F.log_softmax(Triplet_val / 0.1, dim=1)[:, 0].mean()
-
-            # return -F.log_softmax(
-            #     Triplet_val[Triplet_val, :] / 0.1, dim=1
-            # )[:, 0].mean()
+            return -F.log_softmax(
+                Triplet_val / 0.1, 
+                dim=1
+            )[:, 0].mean()
 
     def _calculate_cosine_similarity(
         self,     
@@ -515,13 +513,8 @@ class SCTLoss(nn.Module):
         self, 
         Lvec: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        # N = Lvec.size(0)
-        # Forms N x N
-        # Mask = Lvec.repeat(N,1)
-        
         # True if labels match
         Same = Lvec.unsqueeze(0) == Lvec.unsqueeze(1)
-        # Same = (Mask == Mask.t())
         
         # Same / Different masks
         return Same.clone().fill_diagonal_(0), ~Same
