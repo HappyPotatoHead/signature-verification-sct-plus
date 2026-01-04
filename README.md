@@ -7,25 +7,25 @@ This model utilises the [EfficientNetV2](https://arxiv.org/abs/2104.00298) as th
 
 ## Built With
 
-* [![Python][python-image]][python-url] `3.13.9`
+[![Python][python-image]][python-url] `3.13.9`
 
-Libraries:
+| Libraries                                            |  Version      |  
+|------------------------------------------------------|---------------|
+| [![PyTorch][pytorch-image]][pytorch-url]             | `2.9.0+cu130` |
+| [![NumPy][numpy-image]][numpy-url]                   | `2.2.6`       |
+| [![TensorBoard][tensorboard-image]][tensorboard-url] | `2.20.0`      |
+| [![OpenCV][opencv-image]][opencv-url]                | `4.12.0.88`   |
+| [![PIL][pillow-image]][pillow-url]                   | `11.3.0`      |
+| [![Scikit Learn][sklearn-image]][sklearn-url]        | `1.7.2`       |
+| [![Matplotlib][matplotlib-image]][matplotlib-url]    | `3.10.7`      |
+| [![Seaborn][seaborn-image]][seaborn-url]             | `0.13.2`      |
 
-* [![PyTorch][pytorch-image]][pytorch-url] `2.9.0+cu130`
-* [![NumPy][numpy-image]][numpy-url] `2.2.6`
-* [![TensorBoard][tensorboard-image]][tensorboard-url] `2.20.0`
-* [![OpenCV][opencv-image]][opencv-url] `4.12.0.88`
-* [![PIL][pillow-image]][pillow-url] `11.3.0`
-* [![Scikit Learn][sklearn-image]][sklearn-url] `1.7.2`
-* [![Matplotlib][matplotlib-image]][matplotlib-url] `3.10.7`
-* [![Seaborn][seaborn-image]][seaborn-url] `0.13.2`
 
 ## Installation
 
 ```bash
 git clone https://github.com/HappyPotatoHead/signature-verification-sct-plus
 ```
-
 
 ## Usage example
 
