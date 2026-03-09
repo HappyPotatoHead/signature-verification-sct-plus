@@ -1,9 +1,20 @@
-from src import DATASET_PATH, LEARNING_CONFIG, OPTIMISER_PARAMS, SCHEDULER_PARAMS, seed_everything, seed_worker
-from src import retrieve_signature_images, prepare_signature_map 
+from src import (DATASET_PATH,
+                LEARNING_CONFIG,
+                OPTIMISER_PARAMS,
+                SCHEDULER_PARAMS,
+                seed_everything, 
+                seed_worker)
+from src import retrieve_signature_images, prepare_signature_map
 from src import training_and_testing_split
 from src import TRAIN_TRANSFORM, TEST_TRANSFORM
-from src import PKSampler, SignatureDataset, TestSignatureDataset, build_label_to_indices, pretty_metrics
-from src import FeatureExtractionModel, SCTLossWrapper, TripletLoss # pyright: ignore[reportUnusedImport]
+from src import (PKSampler, 
+                SignatureDataset, 
+                TestSignatureDataset, 
+                build_label_to_indices, 
+                pretty_metrics)
+from src import (FeatureExtractionModel, 
+                SCTLossWrapper, 
+                TripletLoss) # pyright: ignore[reportUnusedImport]
 from src import Trainer
 from src import evaluate
 
