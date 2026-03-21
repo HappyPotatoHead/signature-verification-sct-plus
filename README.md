@@ -1,16 +1,40 @@
 # Offline Signature Verification
-> This is the final year project for my Bachelor's of Computer Science degree
-
-This model utilises the [EfficientNetV2](https://arxiv.org/abs/2104.00298) as the feature extraction backbone. This is complemented with a custom loss function, $L_{SC+}$, inspired from [Hard negative examples are hard, but useful](https://arxiv.org/abs/2007.12749). This project also feature an extension of $PK$ sampling, $PKFM$, which provides more control over the count of intra-class and inter-class signatures.
-
 ![header](assets/header.png)
+
+> Full [documentation!](https://potatogarden.surge.sh/AI--and--Deep-Learning/Offline-Signature-Verification)
+>
+> [Test the model here!](https://sct-signature-demo.streamlit.app/) (*psst, it's stateless*)
+
+This OSV model utilises [EfficientNetV2](https://arxiv.org/abs/2104.00298) as a feature extraction backbone. The backbone is complemented with a custom loss function, $L_{SC+}$, built on [Hard negative examples are hard, but useful](https://arxiv.org/abs/2007.12749). This project also features an extension of $PK$ sampling, $PKFM$, providing more control over the sampling of intra-class and inter-class signatures during training.
+
+## Model Performance
+
+> The model is test on a held-out test set spliced from CEDAR. 
+
+| Metrics (Threshold: 0.725) | Results | 
+| -------------------------- | ------- |
+| Accuracy	                 | 84.85%  |
+| True Positive Rate	     | 84.80%  |
+| False Positive Rate	     | 15.20%  |
+| AUC	                     | 0.9284  |
+| EER	                     | 15.15%  |
+	
+| Average Similarity Score (Cosine Similarity) | Results |
+| -------------------------------------------- | ------- |
+| Positive Score	                           | 0.8444  |
+| Negative Score	                           | 0.3644  |
+
+## Key Features
+
+- The loss function is built on [Hard negative examples are hard, but useful](https://arxiv.org/abs/2007.12749), improving the triplet optimisation and computation comsumption. $L_{SC+}$ adapts the loss function to this domain by introducing a positive boundary. 
+- $PKFM$ ensures that sufficient hard forgeries are shown in each batch during training. This is useful when the dataset is imbalanced. 
+
 
 ## Built With
 
-[![Python][python-image]][python-url] `3.13.9`
-
-| Libraries                                            |  Version      |  
+| Components                                           |  Version      |  
 |------------------------------------------------------|---------------|
+| [![Python][python-image]][python-url]                | `3.13.9`      |
 | [![PyTorch][pytorch-image]][pytorch-url]             | `2.9.0+cu130` |
 | [![NumPy][numpy-image]][numpy-url]                   | `2.2.6`       |
 | [![TensorBoard][tensorboard-image]][tensorboard-url] | `2.20.0`      |
@@ -20,8 +44,9 @@ This model utilises the [EfficientNetV2](https://arxiv.org/abs/2104.00298) as th
 | [![Matplotlib][matplotlib-image]][matplotlib-url]    | `3.10.7`      |
 | [![Seaborn][seaborn-image]][seaborn-url]             | `0.13.2`      |
 
-
 ## Installation
+
+Clone the repository to your selected directory and start training!
 
 ```bash
 git clone https://github.com/HappyPotatoHead/signature-verification-sct-plus
@@ -36,12 +61,14 @@ Edit these settings to modify the training pipeline
 #### Signature images
 
 ```python
-# Place the online source here
+
+# If the dataset is downloadable online
+# This particular dataset is hosted on Kaggle
 DATASET_SOURCE: Dict[str, str] = {
     "cedar": "shreelakshmigp/cedardataset", 
 }
 
-# Raw dataset folder
+# Directory containing unprocessed signature images
 DATASET_PATH: Dict[str, str] = {
     "CEDAR": "data\\CEDAR"
 }
@@ -50,7 +77,7 @@ IMAGE_FORMATS: List[str] = [".png", ".jpg", ".jpeg", ".bmp"]
 ```
 
 ```python
-# Data augmentations 
+# Data Augmentations
 TRAIN_TRANSFORM = transforms.Compose([
         transforms.Resize((384, 384)),
         transforms.RandomAffine(
@@ -87,22 +114,21 @@ LEARNING_CONFIG: Dict[str, str | int | float] = {
     "BATCH_SIZE": 32,
     "EPOCH": 50,
     "LEARNING_RATE": 1e-3,
-    "EARLY_STOPPING_PATIENT": 10,
-    
-    "DEVICE": "cuda" if torch.cuda.is_available() else "cpu",
-    
+    "EARLY_STOPPING_PATIENT": 10, 
+    "DEVICE": "cuda" if torch.cuda.is_available() else "cpu",    
     "CHECKPOINT_DIR": "checkpoint/exp_01_sct",
+
+    # Referred directory for tensorboard
     "LOG_DIR": "runs/exp_01_sct"
 }
 
-# Optimer algorithm
+# Optimiser Algorithm
 OPTIMISER_PARAMS: Dict[str, str | float] = {
     "optimiser": "AdamW",
-    # Prevent overwriting the pretrained weights too aggressively
     "weight_decay": 1e-3,
 }
 
-# Scheduler algorithm
+# Linear learning followed by cosine annealing
 SCHEDULER_PARAMS: SchedulerConfig = {
     "SCHEDULER": "SequentialLR", 
     "MILESTONES": [5],
@@ -125,13 +151,11 @@ SCHEDULER_PARAMS: SchedulerConfig = {
 }
 ```
 
-### Training The Model
+## Training
 
-Make changes to these code to change the backbone and the loss function used.
+Switch between loss function here. 
 
 ```python
-model = FeatureExtractionModel("efficientnet_v2_m", 256, "IMAGENET1K_V1")
-
 loss_function = SCTLossWrapper(
     method = "sct", 
     lam = 1.0, 
@@ -139,14 +163,16 @@ loss_function = SCTLossWrapper(
     positive_pull_weight = 0.5, 
     verbose = True
 )
-
 # loss_function = TripletLoss(0.5,"batch_hard")
+# loss_function = TripletLoss(0.5,"batch_semi_hard")
+
+model = FeatureExtractionModel("efficientnet_v2_m", 256, "IMAGENET1K_V1")
 ```
 
 ## Development setup
 
 1. Navigate to the project directory
-2. Create a virtual environment
+2. Create a virtual environment, preferably with a package and environment manager. (I use mini forge)
 3. Run
     ```bash
     pip install -r requirements.txt
@@ -158,14 +184,14 @@ loss_function = SCTLossWrapper(
 
 * 1.0
     * First release! 
+* 1.01 
+    * README minor fixes
 
 ## Meta
 
-Jimmy Ding – [Potato Garden](https://potatogarden.surge.sh/) – jimmydingjk@gmail.com
+Jimmy Ding | [Potato Garden](https://potatogarden.surge.sh/) | [Github](https://github.com/HappyPotatoHead/) | jimmydingjk@gmail.com
 
-Distributed under the Apache license. See ``LICENSE`` for more information.
-
-[HappyPotatoHead](https://github.com/HappyPotatoHead/)
+Distributed under the Apache license. See `LICENSE` for more information.
 
 ## Contributing
 
@@ -203,4 +229,3 @@ Distributed under the Apache license. See ``LICENSE`` for more information.
 
 [sklearn-image]: https://img.shields.io/badge/Scikit%20Learn-fffcf0?logo=scikit-learn&logoColor=100f0f
 [sklearn-url]: https://scikit-learn.org/stable/
-
