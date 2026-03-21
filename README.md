@@ -5,7 +5,7 @@
 >
 > [Test the model here!](https://sct-signature-demo.streamlit.app/) (*psst, it's stateless*)
 
-This OSV model utilises [EfficientNetV2](https://arxiv.org/abs/2104.00298) as a feature extraction backbone. The backbone is complemented with a custom loss function, $L_{SC+}$, built on [Hard negative examples are hard, but useful](https://arxiv.org/abs/2007.12749). This project also features an extension of $PK$ sampling, $PKFM$, providing more control over the sampling of intra-class and inter-class signatures during training.
+This OSV model utilises [EfficientNetV2](https://arxiv.org/abs/2104.00298) as the feature extraction backbone. The backbone is complemented with a custom loss function, $L_{SC+}$, built on [Hard negative examples are hard, but useful](https://arxiv.org/abs/2007.12749). This project also features an extension of $PK$ sampling, $PKFM$, providing more control over the sampling of intra-class and inter-class signatures during training.
 
 ## Model Performance
 
