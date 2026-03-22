@@ -5,6 +5,7 @@ matplotlib==3.10.7
 seaborn==0.13.2
 pillow==11.3.0
 scikit-learn==1.7.2
+streamlit==1.53.0
 torch==2.9.0+cu130
 torchvision==0.24.0+cu130
 tensorboard==2.20.0
