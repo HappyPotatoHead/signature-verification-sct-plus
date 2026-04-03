@@ -2,7 +2,7 @@ import cv2 as cv
 
 import torch
 import torchvision.models as models # pyright: ignore[reportMissingTypeStubs]
-import torchvision.transforms as transforms # pyright: ignore[reportMissingTypeStubs]
+import torchvision.transforms.v2 as transforms # pyright: ignore[reportMissingTypeStubs]
 
 from typing import Dict, Tuple, Any, List, TypedDict
 from dataclasses import dataclass
