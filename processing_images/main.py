@@ -56,8 +56,11 @@ if __name__ == '__main__':
     threshold_params = ThresholdConfig()
     
     # Assume you are calling from the command line
-    dataset_source = "CEDAR"
-    
+    # dataset_source = "CEDAR"
+    dataset_source = "real_world"
+
+    # raw_forged_folder = Path(f"raw_signature_images/{dataset_source}/forged")
+    # raw_original_folder = Path(f"raw_signature_images/{dataset_source}/original")
     raw_forged_folder = Path(f"raw_signature_images/{dataset_source}/forged")
     raw_original_folder = Path(f"raw_signature_images/{dataset_source}/original")
     
@@ -73,8 +76,8 @@ if __name__ == '__main__':
         clahe_params,
         blur_params,
         threshold_params
-    )
-    
+    ) 
+
     image_processing_pipeline(
         raw_original_folder,
         output_original_folder,

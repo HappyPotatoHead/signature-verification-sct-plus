@@ -15,13 +15,13 @@ class CLAHEConfig:
 @dataclass
 class BlurConfig:
     kernel_size: Tuple[int, int] = (5, 5)
-    
-@dataclass 
+
+@dataclass
 class ThresholdConfig:
     method: int = cv.THRESH_BINARY + cv.THRESH_OTSU
-    
+
 DATASET_SOURCE: Dict[str, str] = {
-    "cedar": "shreelakshmigp/cedardataset", 
+    "cedar": "shreelakshmigp/cedardataset",
 }
 
 class SchedulerEntry(TypedDict):
@@ -41,7 +41,7 @@ class ModelState(TypedDict):
     auc: float
     best_loss: float
     patience_counter: int
-    
+
 DATASET_PATH: Dict[str, str] = {
     "CEDAR": "data\\CEDAR"
 }
@@ -51,9 +51,9 @@ LEARNING_CONFIG: Dict[str, str | int | float] = {
     "EPOCH": 50,
     "LEARNING_RATE": 1e-3,
     "EARLY_STOPPING_PATIENT": 10,
-    
+
     "DEVICE": "cuda" if torch.cuda.is_available() else "cpu",
-    
+
     "CHECKPOINT_DIR": "checkpoint/exp_01_sct",
     "LOG_DIR": "runs/exp_01_sct"
 }
@@ -66,7 +66,7 @@ OPTIMISER_PARAMS: Dict[str, str | float] = {
 
 # Linear Warmup and Cosine Decay
 SCHEDULER_PARAMS: SchedulerConfig = {
-    "SCHEDULER": "SequentialLR", 
+    "SCHEDULER": "SequentialLR",
     "MILESTONES": [5],
     "SCHEDULERS": [
         {
@@ -79,7 +79,7 @@ SCHEDULER_PARAMS: SchedulerConfig = {
         {
             "name": "CosineAnnealingLR",
             "params": {
-                "T_max": int(LEARNING_CONFIG["EPOCH"])-5, 
+                "T_max": int(LEARNING_CONFIG["EPOCH"])-5,
                 "eta_min": 1e-6
             }
         }
@@ -97,26 +97,28 @@ IMAGE_FORMATS: List[str] = [".png", ".jpg", ".jpeg", ".bmp"]
 TRAIN_TRANSFORM = transforms.Compose([
         transforms.Resize((384, 384)),
         transforms.RandomAffine(
-            degrees=(-5, 5), 
-            translate=(0.1, 0.1), 
-            scale=(0.95, 1.05), 
+            degrees=(-5, 5),
+            translate=(0.1, 0.1),
+            scale=(0.95, 1.05),
             shear=(-5, 5)
         ),
 
         transforms.RandomResizedCrop(
-            (384, 384), 
-            scale=(0.9, 1.05), 
-            ratio=(0.95, 1.05), 
+            (384, 384),
+            scale=(0.9, 1.05),
+            ratio=(0.95, 1.05),
             antialias=True
         ),
-        transforms.ToTensor(),
+        transforms.ToImage(),
+        transforms.ToDtype(torch.float32, scale=True),
         transforms.Normalize(
             mean=[0.5], std=[0.5]
     )])
 
 TEST_TRANSFORM = transforms.Compose([
         transforms.Resize((384, 384)),
-        transforms.ToTensor(),
+        transforms.ToImage(),
+        transforms.ToDtype(torch.float32, scale=True),
         transforms.Normalize(
             mean=[0.5], std=[0.5]
     )])
