@@ -57,7 +57,7 @@ if __name__ == '__main__':
     
     # Assume you are calling from the command line
     # dataset_source = "CEDAR"
-    dataset_source = "real_world"
+    dataset_source = "real_world_3"
 
     # raw_forged_folder = Path(f"raw_signature_images/{dataset_source}/forged")
     # raw_original_folder = Path(f"raw_signature_images/{dataset_source}/original")
