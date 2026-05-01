@@ -97,7 +97,6 @@ if __name__ == "__main__":
         SCHEDULER_PARAMS,
         True
     )
-        
     model_trainer.fit(train_dataloader, val_dataloader)
     result = evaluate(model, test_dataloader, test_map, torch.device("cuda"))
     print(f"Accuracy: {(result["metrics"]["accuracy"])*100:.4f}%\n")
